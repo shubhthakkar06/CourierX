@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Sign In / Sign Up</title>
+  <meta name="description" content="CourierX — Fast, reliable courier management. Sign in or create your account." />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .particles { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+    .particle {
+      position:absolute; width:2px; height:2px; border-radius:50%;
+      background:var(--primary-l); opacity:0;
+      animation: floatUp linear infinite;
+    }
+    @keyframes floatUp {
+      0%   { opacity:0; transform:translateY(0) scale(1); }
+      10%  { opacity:.6; }
+      90%  { opacity:.2; }
+      100% { opacity:0; transform:translateY(-100vh) scale(0); }
+    }
+    /* OTP step indicator */
+    .step-indicator {
+      display:flex; align-items:center; gap:0.5rem; margin-bottom:1.5rem;
+      font-size:0.8rem; font-weight:600;
+    }
+    .step-dot {
+      width:28px; height:28px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:0.75rem; font-weight:700;
+    }
+    .step-dot.active { background:var(--primary); color:#fff; }
+    .step-dot.done   { background:var(--success);  color:#fff; }
+    .step-dot.idle   { background:var(--surface-2); color:var(--muted-l); border:1px solid var(--border); }
+    .step-line { flex:1; height:2px; background:var(--border); border-radius:99px; }
+    .step-line.done { background:var(--success); }
+
+    /* OTP input */
+    .otp-input {
+      letter-spacing:0.3em; font-size:1.4rem; font-weight:700;
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="particles" id="particles"></div>
+
+  <div class="auth-wrap" style="position:relative;z-index:1">
+    <div class="auth-logo">📦 CourierX</div>
+    <p class="auth-tagline">Fast. Reliable. Trackable.</p>
+
+    <div class="auth-card animate-slide">
+      <!-- Tab Switcher -->
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-signin" onclick="switchTab('signin')">Sign In</button>
+        <button class="tab-btn"        id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+      </div>
+
+      <!-- ══════════ SIGN IN ══════════ -->
+      <div id="pane-signin">
+        <div id="alert-signin"></div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="si-email" placeholder="you@gmail.com" />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="si-pwd" placeholder="Your password" />
+        </div>
+        <button class="btn btn-primary btn-full" id="btn-signin" onclick="doSignIn()">Sign In</button>
+      </div>
+
+      <!-- ══════════ SIGN UP (2 steps) ══════════ -->
+      <div id="pane-signup" style="display:none">
+
+        <!-- Step indicator -->
+        <div class="step-indicator">
+          <div class="step-dot active" id="dot-1">1</div>
+          <div class="step-line" id="line-1"></div>
+          <div class="step-dot idle"   id="dot-2">2</div>
+        </div>
+
+        <!-- ── Step 1: Fill details ── -->
+        <div id="su-step1">
+          <div id="alert-signup"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Username</label>
+              <input type="text" id="su-name" placeholder="johnsmith (min 8 letters)" />
+            </div>
+            <div class="form-group">
+              <label>Date of Birth</label>
+              <input type="date" id="su-dob" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Email (your login ID)</label>
+            <input type="email" id="su-email" placeholder="you@gmail.com" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Password</label>
+              <input type="password" id="su-pwd" placeholder="Min 8, include @, 1 UPPERCASE" />
+            </div>
+            <div class="form-group">
+              <label>Confirm Password</label>
+              <input type="password" id="su-cpwd" placeholder="Repeat password" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Mobile Number <span style="color:var(--muted);font-weight:400">(for OTP verification)</span></label>
+            <div style="display:flex;gap:0.5rem">
+              <span style="display:flex;align-items:center;padding:0 0.75rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted-l);font-size:0.9rem;white-space:nowrap">🇮🇳 +91</span>
+              <input type="tel" id="su-mobile" placeholder="10-digit mobile" maxlength="10" style="flex:1" />
+            </div>
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-send-otp" onclick="sendSignupOtp()">
+            Send OTP →
+          </button>
+        </div>
+
+        <!-- ── Step 2: Verify OTP ── -->
+        <div id="su-step2" style="display:none">
+          <div id="alert-otp"></div>
+          <p style="color:var(--muted-l);font-size:0.875rem;margin-bottom:1.25rem;text-align:center">
+            Enter the 6-digit OTP sent to<br>
+            <strong style="color:var(--text)" id="otp-mobile-display"></strong>
+          </p>
+          <div class="form-group">
+            <label>OTP Code</label>
+            <input type="text" id="su-otp" class="otp-input" placeholder="– – – – – –" maxlength="6" />
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-signup" onclick="doSignUp()">
+            Create Account ✓
+          </button>
+          <button class="btn btn-ghost btn-full" style="margin-top:0.5rem" onclick="backToStep1()">
+            ← Change Details
+          </button>
+          <div style="text-align:center;margin-top:0.75rem">
+            <button class="btn btn-ghost btn-sm" onclick="sendSignupOtp(true)" id="btn-resend" style="font-size:0.8rem">
+              Resend OTP
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.25rem;text-align:center;font-size:0.8rem;color:var(--muted)">
+        Admin?
+        <a href="/admin.html" style="color:var(--primary-l);font-weight:600">Admin Portal →</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => {
+      const r = await api.get('/api/auth/me');
+      if (r.ok) window.location.href = '/dashboard.html';
+    })();
+
+    // Floating particles
+    const pc = document.getElementById('particles');
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.cssText = `left:${Math.random()*100}%;animation-duration:${6+Math.random()*10}s;animation-delay:${Math.random()*8}s;width:${1+Math.random()*3}px;height:${1+Math.random()*3}px;`;
+      pc.appendChild(p);
+    }
+
+    function switchTab(tab) {
+      document.getElementById('pane-signin').style.display = tab === 'signin' ? '' : 'none';
+      document.getElementById('pane-signup').style.display = tab === 'signup' ? '' : 'none';
+      document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+      document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+      clearAlert('alert-signin'); clearAlert('alert-signup');
+    }
+
+    // ── Sign In ──────────────────────────────────────────────────────
+    async function doSignIn() {
+      const email = document.getElementById('si-email').value.trim();
+      const pwd   = document.getElementById('si-pwd').value;
+      if (!email || !pwd) return setAlert('alert-signin', 'Please fill in all fields.');
+      const btn = document.getElementById('btn-signin');
+      setLoading(btn, true);
+      const r = await api.post('/api/auth/signin', { userid: email, password: pwd });
+      setLoading(btn, false);
+      if (r.ok) {
+        showToast(`Welcome back, ${r.data.username}! 🎉`, 'success');
+        setTimeout(() => window.location.href = '/dashboard.html', 800);
+      } else {
+        setAlert('alert-signin', r.data.error || 'Sign in failed.');
+      }
+    }
+
+    // ── Sign Up — Step 1: Send OTP ───────────────────────────────────
+    async function sendSignupOtp(resend = false) {
+      clearAlert('alert-signup');
+      const mobile = document.getElementById('su-mobile').value.trim();
+
+      if (!resend) {
+        // Validate all fields before sending OTP
+        const name  = document.getElementById('su-name').value.trim();
+        const email = document.getElementById('su-email').value.trim();
+        const pwd   = document.getElementById('su-pwd').value;
+        const cpwd  = document.getElementById('su-cpwd').value;
+        const dob   = document.getElementById('su-dob').value;
+        if (!name || !email || !pwd || !cpwd || !mobile || !dob)
+          return setAlert('alert-signup', 'Please fill in all fields.');
+        if (pwd !== cpwd)
+          return setAlert('alert-signup', 'Passwords do not match.');
+        if (mobile.length !== 10 || isNaN(mobile))
+          return setAlert('alert-signup', 'Enter a valid 10-digit mobile number.');
+      }
+
+      const btn = document.getElementById(resend ? 'btn-resend' : 'btn-send-otp');
+      setLoading(btn, true);
+      const r = await api.post('/api/otp/send', { mobile });
+      setLoading(btn, false);
+
+      if (r.ok) {
+        showToast('OTP sent! Check your SMS.', 'success');
+        document.getElementById('otp-mobile-display').textContent = `+91 ${mobile.slice(0,2)}****${mobile.slice(-2)}`;
+        // Advance to step 2
+        document.getElementById('su-step1').style.display = 'none';
+        document.getElementById('su-step2').style.display = '';
+        document.getElementById('dot-1').className = 'step-dot done';
+        document.getElementById('dot-1').textContent = '✓';
+        document.getElementById('line-1').className = 'step-line done';
+        document.getElementById('dot-2').className = 'step-dot active';
+      } else {
+        setAlert('alert-signup', r.data.error || 'Failed to send OTP. Check the mobile number.');
+      }
+    }
+
+    function backToStep1() {
+      document.getElementById('su-step1').style.display = '';
+      document.getElementById('su-step2').style.display = 'none';
+      document.getElementById('dot-1').className = 'step-dot active';
+      document.getElementById('dot-1').textContent = '1';
+      document.getElementById('line-1').className = 'step-line';
+      document.getElementById('dot-2').className = 'step-dot idle';
+    }
+
+    // ── Sign Up — Step 2: Verify OTP & Create Account ────────────────
+    async function doSignUp() {
+      clearAlert('alert-otp');
+      const otp_code = document.getElementById('su-otp').value.trim();
+      if (otp_code.length !== 6) return setAlert('alert-otp', 'Enter the 6-digit OTP.');
+
+      const body = {
+        username:  document.getElementById('su-name').value.trim(),
+        userid:    document.getElementById('su-email').value.trim(),
+        password:  document.getElementById('su-pwd').value,
+        dob:       document.getElementById('su-dob').value,
+        mobile:    document.getElementById('su-mobile').value.trim(),
+        otp_code,
+      };
+      const btn = document.getElementById('btn-signup');
+      setLoading(btn, true);
+      const r = await api.post('/api/auth/signup', body);
+      setLoading(btn, false);
+      if (r.ok) {
+        showToast('Account created! Welcome 🎉', 'success');
+        setTimeout(() => window.location.href = '/dashboard.html', 900);
+      } else {
+        setAlert('alert-otp', r.data.error || 'Sign up failed.');
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const isSignin = document.getElementById('tab-signin').classList.contains('active');
+      if (isSignin) doSignIn();
+      else if (document.getElementById('su-step2').style.display !== 'none') doSignUp();
+      else sendSignupOtp();
+    });
+  </script>
+</body>
+</html>

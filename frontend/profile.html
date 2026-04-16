@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Profile</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .profile-avatar {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .edit-section {
+      border-top: 1px solid var(--border);
+      padding-top: 1.25rem; margin-top: 1.25rem;
+    }
+    .edit-section summary {
+      cursor: pointer; font-weight: 600; font-size: 0.9rem;
+      color: var(--primary-l); display: flex; align-items: center; gap: 0.5rem;
+      list-style: none; user-select: none;
+    }
+    .edit-section summary::-webkit-details-marker { display: none; }
+    .edit-section[open] summary { margin-bottom: 1rem; }
+    .danger-zone {
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: var(--radius-lg); padding: 1.5rem;
+    }
+
+    /* OTP row inside each section */
+    .otp-row {
+      display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 0.75rem;
+    }
+    .otp-row input {
+      flex: 1; letter-spacing: 0.25em; font-size: 1.1rem;
+      font-weight: 700; text-align: center;
+    }
+    .otp-row .send-btn {
+      white-space: nowrap; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div id="navbar"></div>
+
+  <div class="page animate-fade" style="max-width:700px">
+    <div class="page-title">My Profile</div>
+    <p class="page-subtitle">Manage your account details and preferences</p>
+
+    <!-- ── Profile Card ── -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.5rem">
+        <div class="profile-avatar" id="avatar">?</div>
+        <div>
+          <div style="font-size:1.4rem;font-weight:800" id="p-username">Loading…</div>
+          <div style="color:var(--muted-l);font-size:0.9rem" id="p-userid"></div>
+          <div style="color:var(--muted);font-size:0.825rem;margin-top:0.2rem">📱 <span id="p-mobile"></span></div>
+          <div style="color:var(--muted);font-size:0.825rem">🎂 <span id="p-dob"></span></div>
+        </div>
+      </div>
+
+      <!-- ── Change Username ── -->
+      <details class="edit-section" id="det-uname">
+        <summary>✏️ Change Username</summary>
+        <div id="alert-uname"></div>
+        <div class="form-group">
+          <label>New Username (8–30 letters only)</label>
+          <input type="text" id="new-uname" placeholder="e.g. johndoe" />
+        </div>
+        <div class="otp-row">
+          <div style="flex:1">
+            <label style="font-size:0.78rem;font-weight:700;color:var(--muted-l);text-transform:uppercase;letter-spacing:0.04em">OTP (sent to your mobile)</label>
+            <input type="text" id="otp-uname" placeholder="6-digit OTP" maxlength="6" />
+          </div>
+          <button class="btn btn-ghost btn-sm send-btn" id="sbtn-uname" onclick="sendProfileOtp('uname')">Send OTP</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-uname" onclick="updateUsername()" style="margin-top:0.75rem">
+          Update Username
+        </button>
+      </details>
+
+      <!-- ── Change Password ── -->
+      <details class="edit-section" id="det-pwd">
+        <summary>🔒 Change Password</summary>
+        <div id="alert-pwd"></div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" id="new-pwd" placeholder="Min 8 chars, include @, 1 UPPERCASE" />
+        </div>
+        <div class="otp-row">
+          <div style="flex:1">
+            <label style="font-size:0.78rem;font-weight:700;color:var(--muted-l);text-transform:uppercase;letter-spacing:0.04em">OTP (sent to your mobile)</label>
+            <input type="text" id="otp-pwd" placeholder="6-digit OTP" maxlength="6" />
+          </div>
+          <button class="btn btn-ghost btn-sm send-btn" id="sbtn-pwd" onclick="sendProfileOtp('pwd')">Send OTP</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-pwd" onclick="updatePassword()" style="margin-top:0.75rem">
+          Update Password
+        </button>
+      </details>
+
+      <!-- ── Change DOB ── -->
+      <details class="edit-section" id="det-dob">
+        <summary>🎂 Change Date of Birth</summary>
+        <div id="alert-dob"></div>
+        <div class="form-group">
+          <label>New Date of Birth</label>
+          <input type="date" id="new-dob" />
+        </div>
+        <div class="otp-row">
+          <div style="flex:1">
+            <label style="font-size:0.78rem;font-weight:700;color:var(--muted-l);text-transform:uppercase;letter-spacing:0.04em">OTP (sent to your mobile)</label>
+            <input type="text" id="otp-dob" placeholder="6-digit OTP" maxlength="6" />
+          </div>
+          <button class="btn btn-ghost btn-sm send-btn" id="sbtn-dob" onclick="sendProfileOtp('dob')">Send OTP</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-dob" onclick="updateDob()" style="margin-top:0.75rem">
+          Update DOB
+        </button>
+      </details>
+    </div>
+
+    <!-- ── Quick Links ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+      <a href="/orders.html" class="card card-hover" style="text-decoration:none;display:flex;align-items:center;gap:0.75rem">
+        <span style="font-size:1.5rem">📋</span>
+        <div><div style="font-weight:600">My Orders</div><div style="font-size:0.8rem;color:var(--muted-l)">View all orders</div></div>
+      </a>
+      <a href="/addresses.html" class="card card-hover" style="text-decoration:none;display:flex;align-items:center;gap:0.75rem">
+        <span style="font-size:1.5rem">🏠</span>
+        <div><div style="font-weight:600">Addresses</div><div style="font-size:0.8rem;color:var(--muted-l)">Manage saved addresses</div></div>
+      </a>
+    </div>
+
+    <!-- ── Danger Zone ── -->
+    <div class="danger-zone">
+      <h3 style="color:var(--danger);margin-bottom:0.5rem">⚠️ Danger Zone</h3>
+      <p style="color:var(--muted-l);font-size:0.875rem;margin-bottom:1rem">
+        Permanently delete your account. This cannot be undone.
+      </p>
+      <div id="alert-delete"></div>
+      <details>
+        <summary style="cursor:pointer;color:var(--danger);font-weight:600;font-size:0.875rem;list-style:none">
+          I want to delete my account →
+        </summary>
+        <div style="margin-top:1rem">
+          <div class="otp-row">
+            <div style="flex:1">
+              <label style="font-size:0.78rem;font-weight:700;color:var(--muted-l);text-transform:uppercase;letter-spacing:0.04em">OTP (sent to your mobile)</label>
+              <input type="text" id="otp-del" placeholder="6-digit OTP" maxlength="6" />
+            </div>
+            <button class="btn btn-ghost btn-sm send-btn" id="sbtn-del" onclick="sendProfileOtp('del')">Send OTP</button>
+          </div>
+          <button class="btn btn-danger" id="btn-del" onclick="deleteAccount()" style="margin-top:0.75rem">
+            Delete My Account
+          </button>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => {
+      const me = await requireAuth();
+      if (!me) return;
+      document.getElementById('navbar').innerHTML = renderNavbar(me.username);
+      setActiveNav();
+      await loadProfile();
+    })();
+
+    async function loadProfile() {
+      const r = await api.get('/api/profile');
+      if (!r.ok) return;
+      const u = r.data;
+      document.getElementById('p-username').textContent = u.username;
+      document.getElementById('p-userid').textContent   = u.userid;
+      document.getElementById('p-dob').textContent      = u.DOB || 'Not set';
+      document.getElementById('avatar').textContent     = (u.username[0] || '?').toUpperCase();
+      if (u.mobile) {
+        const m = u.mobile;
+        document.getElementById('p-mobile').textContent = `+91 ${m.slice(0,2)}****${m.slice(-2)}`;
+      } else {
+        document.getElementById('p-mobile').textContent = 'No mobile on file';
+      }
+    }
+
+    // Send OTP to user's registered mobile for profile actions
+    async function sendProfileOtp(section) {
+      const btnId = `sbtn-${section}`;
+      const btn   = document.getElementById(btnId);
+      setLoading(btn, true);
+      const r = await api.post('/api/otp/send', {});   // No mobile = uses account mobile
+      setLoading(btn, false);
+      if (r.ok) {
+        showToast('OTP sent to your registered mobile 📱', 'success');
+      } else {
+        showToast(r.data.error || 'Failed to send OTP', 'error');
+      }
+    }
+
+    async function updateUsername() {
+      clearAlert('alert-uname');
+      const btn  = document.getElementById('btn-uname');
+      const body = { username: document.getElementById('new-uname').value.trim(), otp_code: document.getElementById('otp-uname').value.trim() };
+      if (!body.otp_code) return setAlert('alert-uname', 'Please send and enter the OTP first.');
+      setLoading(btn, true);
+      const r = await api.put('/api/profile/username', body);
+      setLoading(btn, false);
+      if (r.ok) { showToast('Username updated!', 'success'); await loadProfile(); document.getElementById('det-uname').open = false; }
+      else setAlert('alert-uname', r.data.error || 'Failed to update.');
+    }
+
+    async function updatePassword() {
+      clearAlert('alert-pwd');
+      const btn  = document.getElementById('btn-pwd');
+      const body = { new_password: document.getElementById('new-pwd').value, otp_code: document.getElementById('otp-pwd').value.trim() };
+      if (!body.otp_code) return setAlert('alert-pwd', 'Please send and enter the OTP first.');
+      setLoading(btn, true);
+      const r = await api.put('/api/profile/password', body);
+      setLoading(btn, false);
+      if (r.ok) { showToast('Password updated!', 'success'); document.getElementById('new-pwd').value = ''; document.getElementById('otp-pwd').value = ''; document.getElementById('det-pwd').open = false; }
+      else setAlert('alert-pwd', r.data.error || 'Failed to update.');
+    }
+
+    async function updateDob() {
+      clearAlert('alert-dob');
+      const btn  = document.getElementById('btn-dob');
+      const body = { dob: document.getElementById('new-dob').value, otp_code: document.getElementById('otp-dob').value.trim() };
+      if (!body.otp_code) return setAlert('alert-dob', 'Please send and enter the OTP first.');
+      setLoading(btn, true);
+      const r = await api.put('/api/profile/dob', body);
+      setLoading(btn, false);
+      if (r.ok) { showToast('Date of birth updated!', 'success'); await loadProfile(); document.getElementById('det-dob').open = false; }
+      else setAlert('alert-dob', r.data.error || 'Failed to update.');
+    }
+
+    async function deleteAccount() {
+      if (!confirm('Are you absolutely sure? This will permanently delete your account.')) return;
+      const btn  = document.getElementById('btn-del');
+      const body = { otp_code: document.getElementById('otp-del').value.trim() };
+      if (!body.otp_code) return setAlert('alert-delete', 'Please send and enter the OTP first.');
+      setLoading(btn, true);
+      const r = await api.del('/api/profile', body);
+      setLoading(btn, false);
+      if (r.ok) {
+        showToast('Account deleted. Goodbye!', 'info');
+        setTimeout(() => window.location.href = '/index.html', 1500);
+      } else {
+        setAlert('alert-delete', r.data.error || 'Failed to delete account.');
+      }
+    }
+  </script>
+</body>
+</html>

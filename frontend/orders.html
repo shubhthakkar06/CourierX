@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Orders</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .weight-slider { -webkit-appearance:none; appearance:none; width:100%; height:6px;
+      border-radius:99px; background:var(--border); outline:none; }
+    .weight-slider::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px;
+      border-radius:50%; background:var(--primary); cursor:pointer;
+      box-shadow:0 0 8px rgba(99,102,241,0.5); }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div id="navbar"></div>
+
+  <div class="page animate-fade">
+    <div class="page-title">Orders</div>
+    <p class="page-subtitle">Place, view, and manage your courier orders</p>
+
+    <!-- ── Tabs ── -->
+    <div class="tabs" style="max-width:320px;margin-bottom:2rem">
+      <button class="tab-btn active" id="tab-new"    onclick="switchTab('new')">New Order</button>
+      <button class="tab-btn"        id="tab-orders" onclick="switchTab('orders')">My Orders</button>
+    </div>
+
+    <!-- ════════ NEW ORDER PANE ════════ -->
+    <div id="pane-new">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+
+        <!-- Left: Form -->
+        <div class="card">
+          <h2 style="margin-bottom:1.25rem">📦 Place New Order</h2>
+          <div id="alert-order"></div>
+
+          <!-- Weight -->
+          <div class="form-group">
+            <label>Package Weight (kg)</label>
+            <input type="range" class="weight-slider" id="weight-slider" min="3" max="30" step="0.5" value="5" oninput="updateWeight(this.value)" />
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem">
+              <span style="color:var(--muted-l);font-size:0.8rem">3 kg</span>
+              <input type="number" id="weight-input" value="5" min="3" max="30" step="0.5"
+                style="width:80px;text-align:center" oninput="updateWeight(this.value)" />
+              <span style="color:var(--muted-l);font-size:0.8rem">30 kg</span>
+            </div>
+          </div>
+
+          <!-- Price Preview -->
+          <div style="margin-bottom:1.25rem">
+            <label>Estimated Price</label>
+            <div class="price-tag" id="price-display" style="margin-top:0.5rem">
+              <span>₹</span><span id="price-value">—</span>
+            </div>
+          </div>
+
+          <!-- Address -->
+          <div class="form-group">
+            <label>Delivery Address</label>
+            <select id="addr-select">
+              <option value="">Loading addresses…</option>
+            </select>
+            <a href="/addresses.html" style="font-size:0.8rem;color:var(--primary-l);margin-top:0.4rem">
+              + Add new address
+            </a>
+          </div>
+
+          <button class="btn btn-primary btn-full" id="btn-place" onclick="placeOrder()" style="margin-top:0.5rem">
+            Place Order
+          </button>
+        </div>
+
+        <!-- Right: Info -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div class="card">
+            <h3 style="margin-bottom:0.75rem">📌 How It Works</h3>
+            <ol style="padding-left:1.25rem;color:var(--muted-l);font-size:0.875rem;line-height:2">
+              <li>Enter your package weight</li>
+              <li>Select a delivery address</li>
+              <li>Place order — get an Order ID</li>
+              <li>Drop the package at nearest branch</li>
+              <li>Track delivery from the <a href="/track.html" style="color:var(--primary-l)">Track page</a></li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:0.75rem">💳 Payment</h3>
+            <p style="color:var(--muted-l);font-size:0.875rem">
+              Only <strong style="color:var(--text)">Cash on Drop</strong> is accepted.
+              Pay at the nearest branch when you drop the courier.
+            </p>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:0.75rem">📦 Weight Pricing</h3>
+            <table style="font-size:0.8rem;width:100%">
+              <thead><tr><th>Weight</th><th>Price</th></tr></thead>
+              <tbody id="price-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ MY ORDERS PANE ════════ -->
+    <div id="pane-orders" style="display:none">
+      <div id="orders-wrap">
+        <div class="empty"><div class="empty-icon">⏳</div><p>Loading orders…</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Success Modal ── -->
+  <div id="success-modal" style="display:none">
+    <div class="modal-backdrop" onclick="closeSuccessModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div style="text-align:center;padding:1rem 0">
+          <div style="font-size:3.5rem;margin-bottom:1rem">🎉</div>
+          <h2 style="margin-bottom:0.5rem">Order Placed!</h2>
+          <p style="color:var(--muted-l);margin-bottom:1.5rem" id="modal-msg">Your order has been placed successfully.</p>
+          <div class="card" style="text-align:left;margin-bottom:1.5rem">
+            <div class="form-group" style="margin:0">
+              <label>Order ID</label>
+              <div style="font-size:1.4rem;font-weight:800;color:var(--primary-l)" id="modal-oid"></div>
+            </div>
+            <div class="divider"></div>
+            <div style="display:flex;justify-content:space-between">
+              <div><label>Price</label><div id="modal-price" style="font-weight:700;color:var(--success)"></div></div>
+              <div><label>Date</label><div id="modal-date" style="font-weight:600"></div></div>
+            </div>
+          </div>
+          <!-- Feedback -->
+          <p style="font-size:0.85rem;color:var(--muted-l);margin-bottom:0.75rem">How was your experience placing this order?</p>
+          <div style="display:flex;gap:0.5rem;justify-content:center;margin-bottom:1.25rem">
+            <button class="btn btn-success btn-sm" onclick="sendFeedback('excellent')">😊 Excellent</button>
+            <button class="btn btn-ghost btn-sm"   onclick="sendFeedback('moderate')">😐 Moderate</button>
+            <button class="btn btn-danger btn-sm"  onclick="sendFeedback('bad')">😞 Bad</button>
+          </div>
+          <button class="btn btn-primary" onclick="closeSuccessModal()">View My Orders</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    let currentOrderId = null;
+
+    // Price table
+    const priceMap = [[3,500],[5,1000],[7,1500],[9,2000],[11,2500],[13,3000],
+                      [15,3500],[17,4000],[19,4500],[21,5000],[23,5500],[25,6000],[27,6500],[30,7000]];
+
+    function calcPrice(w) {
+      w = parseFloat(w);
+      for (const [wt, pr] of priceMap) { if (w <= wt) return pr; }
+      return 7000;
+    }
+
+    function updateWeight(val) {
+      document.getElementById('weight-slider').value = val;
+      document.getElementById('weight-input').value  = val;
+      document.getElementById('price-value').textContent = calcPrice(val).toLocaleString();
+    }
+
+    // Populate price table
+    const ptb = document.getElementById('price-table');
+    for (const [wt, pr] of priceMap) {
+      ptb.innerHTML += `<tr><td>Up to ${wt} kg</td><td>₹${pr.toLocaleString()}</td></tr>`;
+    }
+
+    (async () => {
+      const me = await requireAuth();
+      if (!me) return;
+      document.getElementById('navbar').innerHTML = renderNavbar(me.username);
+      setActiveNav();
+      updateWeight(5);
+
+      // Load addresses
+      const r = await api.get('/api/addresses');
+      const sel = document.getElementById('addr-select');
+      if (r.ok && r.data.length) {
+        sel.innerHTML = r.data.map((a, i) =>
+          `<option value="${a.pincode} ${a.reciever_name} ${a.reciever_city} ${a.reciever_street} ${a.reciever_house} ${a.reciever_no}">
+            ${i+1}. ${a.reciever_name} — ${a.reciever_city}, ${a.pincode}
+          </option>`
+        ).join('');
+      } else {
+        sel.innerHTML = '<option value="">No addresses — add one first</option>';
+      }
+
+      // Check URL hash
+      if (window.location.hash === '#cancel') switchTab('orders');
+      await loadOrders();
+    })();
+
+    function switchTab(tab) {
+      document.getElementById('pane-new').style.display    = tab === 'new' ?    '' : 'none';
+      document.getElementById('pane-orders').style.display = tab === 'orders' ? '' : 'none';
+      document.getElementById('tab-new').classList.toggle('active',    tab === 'new');
+      document.getElementById('tab-orders').classList.toggle('active', tab === 'orders');
+      if (tab === 'orders') loadOrders();
+    }
+
+    async function placeOrder() {
+      const weight  = document.getElementById('weight-input').value;
+      const address = document.getElementById('addr-select').value;
+      if (!address) return setAlert('alert-order', 'Please select or add a delivery address.');
+      const btn = document.getElementById('btn-place');
+      setLoading(btn, true);
+      const r = await api.post('/api/orders', { weight: parseFloat(weight), address });
+      setLoading(btn, false);
+      if (r.ok) {
+        currentOrderId = r.data.orderid;
+        document.getElementById('modal-oid').textContent   = r.data.orderid;
+        document.getElementById('modal-price').textContent = `₹${parseInt(r.data.price).toLocaleString()}`;
+        document.getElementById('modal-date').textContent  = r.data.order_date;
+        document.getElementById('success-modal').style.display = '';
+      } else {
+        setAlert('alert-order', r.data.error || 'Failed to place order.');
+      }
+    }
+
+    async function sendFeedback(review) {
+      if (!currentOrderId) return;
+      await api.post('/api/feedback', { review, orderid: currentOrderId });
+      showToast('Thanks for your feedback!', 'success');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('success-modal').style.display = 'none';
+      switchTab('orders');
+    }
+
+    async function loadOrders() {
+      const r = await api.get('/api/orders');
+      const wrap = document.getElementById('orders-wrap');
+      if (!r.ok || !r.data.length) {
+        wrap.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><h3>No orders yet</h3><p>Place your first order above!</p></div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Order ID</th><th>Address</th><th>Weight</th>
+              <th>Price</th><th>Date</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+              ${r.data.map(o => `
+                <tr>
+                  <td><code style="color:var(--primary-l)">#${o.orderID}</code></td>
+                  <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.address}</td>
+                  <td>${o.weight} kg</td>
+                  <td style="color:var(--success);font-weight:700">₹${parseInt(o.price).toLocaleString()}</td>
+                  <td>${o.order_date}</td>
+                  <td style="display:flex;gap:0.5rem">
+                    <a href="/track.html?id=${o.orderID}" class="btn btn-ghost btn-sm">Track</a>
+                    <button class="btn btn-danger btn-sm" onclick="cancelOrder(${o.orderID})">Cancel</button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    async function cancelOrder(id) {
+      if (!confirm(`Cancel order #${id}? This cannot be undone.`)) return;
+      const r = await api.del(`/api/orders/${id}`);
+      if (r.ok) { showToast('Order cancelled.', 'success'); loadOrders(); }
+      else showToast(r.data.error || 'Cannot cancel this order.', 'error');
+    }
+  </script>
+</body>
+</html>

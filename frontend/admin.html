@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Admin Portal</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .admin-login-wrap {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <!-- ── Admin Login ── -->
+  <div id="login-view" class="admin-login-wrap">
+    <div style="font-size:2rem;font-weight:800;margin-bottom:0.3rem;background:linear-gradient(135deg,#6366f1,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+      🛡️ Admin Portal
+    </div>
+    <p style="color:var(--muted-l);margin-bottom:2rem">Restricted access — administrators only</p>
+    <div class="auth-card animate-slide" style="max-width:380px">
+      <div id="alert-login"></div>
+      <div class="form-group">
+        <label>Admin ID</label>
+        <input type="text" id="a-uid" placeholder="admin" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="a-pwd" placeholder="admin" />
+      </div>
+      <button class="btn btn-primary btn-full" id="btn-login" onclick="adminLogin()">Login →</button>
+      <div style="margin-top:1rem;text-align:center">
+        <a href="/index.html" style="font-size:0.8rem;color:var(--muted-l)">← Back to User Login</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Admin Dashboard ── -->
+  <div id="dashboard-view" style="display:none">
+    <nav class="navbar">
+      <span class="nav-logo">🛡️ Admin Portal</span>
+      <ul class="nav-links">
+        <li><a href="#" onclick="showTab('users');return false"   id="link-users">   Users</a></li>
+        <li><a href="#" onclick="showTab('addresses');return false" id="link-addresses">Addresses</a></li>
+        <li><a href="#" onclick="showTab('orders');return false"  id="link-orders">  Orders</a></li>
+      </ul>
+      <button class="btn btn-ghost btn-sm" onclick="adminLogout()">Logout</button>
+    </nav>
+
+    <div class="page animate-fade">
+      <div class="page-title">Admin Dashboard</div>
+      <p class="page-subtitle">View and monitor all data tables</p>
+
+      <!-- Stats -->
+      <div class="stat-grid" style="margin-bottom:2rem">
+        <div class="stat-card">
+          <div class="stat-value gradient-text" id="ad-users">—</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--info)" id="ad-addr">—</div>
+          <div class="stat-label">Addresses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--warning)" id="ad-orders">—</div>
+          <div class="stat-label">Orders</div>
+        </div>
+      </div>
+
+      <!-- Users Tab -->
+      <div id="tab-users">
+        <h2 style="margin-bottom:1rem">👥 Registered Users</h2>
+        <div class="table-wrap">
+          <table><thead><tr><th>Email</th><th>Username</th><th>Date of Birth</th></tr></thead>
+          <tbody id="tbl-users"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Addresses Tab -->
+      <div id="tab-addresses" style="display:none">
+        <h2 style="margin-bottom:1rem">🏠 All Addresses</h2>
+        <div class="table-wrap">
+          <table><thead><tr><th>User</th><th>Receiver</th><th>City</th><th>Pincode</th><th>Mobile</th></tr></thead>
+          <tbody id="tbl-addresses"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Orders Tab -->
+      <div id="tab-orders" style="display:none">
+        <h2 style="margin-bottom:1rem">📦 All Orders</h2>
+        <div class="table-wrap">
+          <table><thead><tr><th>Order ID</th><th>User</th><th>Weight</th><th>Price</th><th>Date</th><th>Address</th></tr></thead>
+          <tbody id="tbl-orders"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => {
+      // Check if already admin
+      const r = await api.get('/api/admin/users');
+      if (r.ok) showDashboard(r);
+    })();
+
+    async function adminLogin() {
+      const uid = document.getElementById('a-uid').value.trim();
+      const pwd = document.getElementById('a-pwd').value;
+      if (!uid || !pwd) return setAlert('alert-login', 'Please enter credentials.');
+      const btn = document.getElementById('btn-login');
+      setLoading(btn, true);
+      const r = await api.post('/api/admin/login', { userid: uid, password: pwd });
+      setLoading(btn, false);
+      if (r.ok) {
+        showToast('Admin logged in!', 'success');
+        const usersR = await api.get('/api/admin/users');
+        showDashboard(usersR);
+      } else {
+        setAlert('alert-login', r.data.error || 'Invalid credentials.');
+      }
+    }
+
+    async function showDashboard(usersR) {
+      document.getElementById('login-view').style.display     = 'none';
+      document.getElementById('dashboard-view').style.display = '';
+
+      const [addrR, ordersR] = await Promise.all([
+        api.get('/api/admin/addresses'),
+        api.get('/api/admin/orders'),
+      ]);
+
+      // Stats
+      const users   = usersR.data   || [];
+      const addrs   = addrR.data    || [];
+      const orders  = ordersR.data  || [];
+      document.getElementById('ad-users').textContent  = users.length;
+      document.getElementById('ad-addr').textContent   = addrs.length;
+      document.getElementById('ad-orders').textContent = orders.length;
+
+      // Populate tables
+      document.getElementById('tbl-users').innerHTML = users.map(u =>
+        `<tr><td>${u.userid}</td><td>${u.username}</td><td>${u.DOB || '—'}</td></tr>`
+      ).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">No users</td></tr>';
+
+      document.getElementById('tbl-addresses').innerHTML = addrs.map(a =>
+        `<tr><td>${a.userid}</td><td>${a.reciever_name}</td><td>${a.reciever_city}</td><td>${a.pincode}</td><td>${a.reciever_no}</td></tr>`
+      ).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No addresses</td></tr>';
+
+      document.getElementById('tbl-orders').innerHTML = orders.map(o =>
+        `<tr>
+          <td><code style="color:var(--primary-l)">#${o.orderID}</code></td>
+          <td>${o.userid}</td><td>${o.weight} kg</td>
+          <td style="color:var(--success);font-weight:700">₹${parseInt(o.price).toLocaleString()}</td>
+          <td>${o.order_date}</td>
+          <td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.address}</td>
+        </tr>`
+      ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No orders</td></tr>';
+
+      showTab('users');
+    }
+
+    function showTab(tab) {
+      ['users','addresses','orders'].forEach(t => {
+        document.getElementById(`tab-${t}`).style.display     = t === tab ? '' : 'none';
+        document.getElementById(`link-${t}`).classList.toggle('active', t === tab);
+      });
+    }
+
+    async function adminLogout() {
+      await api.post('/api/admin/logout');
+      document.getElementById('login-view').style.display     = '';
+      document.getElementById('dashboard-view').style.display = 'none';
+      showToast('Logged out.', 'info');
+    }
+  </script>
+</body>
+</html>

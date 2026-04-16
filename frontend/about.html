@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — About Us</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    .hero {
+      text-align:center; padding: 3rem 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      margin-bottom: 2rem;
+    }
+    .stat-pill {
+      display:inline-flex; align-items:center; gap:0.5rem;
+      background:var(--surface-2); border:1px solid var(--border);
+      padding:0.5rem 1.1rem; border-radius:99px;
+      font-size:0.875rem; font-weight:600;
+    }
+    .value-grid {
+      display:grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap:1rem;
+    }
+    .value-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:1.4rem;
+      display:flex; flex-direction:column; gap:0.5rem;
+    }
+    .chart-wrap { position:relative; max-width:340px; margin:0 auto; }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div id="navbar"></div>
+
+  <div class="page animate-fade">
+
+    <!-- ── Hero ── -->
+    <div class="hero">
+      <div style="font-size:3.5rem;margin-bottom:0.5rem">📦</div>
+      <h1 style="font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;margin-bottom:0.5rem">
+        About <span class="gradient-text">CourierX</span>
+      </h1>
+      <p style="color:var(--muted-l);max-width:520px;margin:0 auto 1.5rem;font-size:1.05rem;line-height:1.7">
+        CourierX is a fast, reliable courier management platform built for modern businesses
+        and individuals who demand transparency, speed, and simplicity in logistics.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center">
+        <span class="stat-pill">🚀 Fast Delivery</span>
+        <span class="stat-pill">🔍 Live Tracking</span>
+        <span class="stat-pill">📦 3–30 kg</span>
+        <span class="stat-pill">💳 Cash on Drop</span>
+      </div>
+    </div>
+
+    <!-- ── Our Values ── -->
+    <h2 style="margin-bottom:1rem">Our Values</h2>
+    <div class="value-grid" style="margin-bottom:2.5rem">
+      <div class="value-card">
+        <span style="font-size:2rem">⚡</span>
+        <div style="font-weight:700">Speed</div>
+        <div style="color:var(--muted-l);font-size:0.875rem">Deliveries completed within 5 working days, guaranteed.</div>
+      </div>
+      <div class="value-card">
+        <span style="font-size:2rem">🔒</span>
+        <div style="font-weight:700">Security</div>
+        <div style="color:var(--muted-l);font-size:0.875rem">Your account is protected with recovery codes and attempt lockouts.</div>
+      </div>
+      <div class="value-card">
+        <span style="font-size:2rem">🌐</span>
+        <div style="font-weight:700">Transparency</div>
+        <div style="color:var(--muted-l);font-size:0.875rem">Track every step — from processing to the last-mile delivery.</div>
+      </div>
+      <div class="value-card">
+        <span style="font-size:2rem">🤝</span>
+        <div style="font-weight:700">Customer First</div>
+        <div style="color:var(--muted-l);font-size:0.875rem">Flexible cancellations and easy modifications within 2 days.</div>
+      </div>
+    </div>
+
+    <!-- ── Customer Feedback ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:center">
+      <div>
+        <h2 style="margin-bottom:0.5rem">Customer Feedback</h2>
+        <p style="color:var(--muted-l);font-size:0.9rem;margin-bottom:1.5rem">
+          What our customers say about their delivery experience.
+        </p>
+        <div id="feedback-stats" style="display:flex;flex-direction:column;gap:0.75rem">
+          <!-- injected by JS -->
+        </div>
+      </div>
+      <div class="card" style="padding:1.5rem">
+        <div class="chart-wrap">
+          <canvas id="feedback-chart"></canvas>
+        </div>
+        <div id="no-feedback" style="display:none;text-align:center;color:var(--muted-l);padding:2rem;font-size:0.9rem">
+          No feedback collected yet.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    let chart = null;
+
+    (async () => {
+      const me = await requireAuth();
+      if (!me) return;
+      document.getElementById('navbar').innerHTML = renderNavbar(me.username);
+      setActiveNav();
+      await loadFeedback();
+    })();
+
+    async function loadFeedback() {
+      const r = await api.get('/api/about/feedback-stats');
+      if (!r.ok) return;
+      const { excellent, moderate, bad } = r.data;
+      const total = excellent + moderate + bad;
+
+      if (total === 0) {
+        document.getElementById('no-feedback').style.display = '';
+        document.getElementById('feedback-chart').style.display = 'none';
+        return;
+      }
+
+      const bars = [
+        { label:'😊 Excellent', value: excellent, color:'var(--success)', cls:'badge-success' },
+        { label:'😐 Moderate',  value: moderate,  color:'var(--warning)', cls:'badge-warning' },
+        { label:'😞 Bad',       value: bad,        color:'var(--danger)',  cls:'badge-danger'  },
+      ];
+
+      document.getElementById('feedback-stats').innerHTML = bars.map(b => `
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:0.4rem">
+            <span style="font-size:0.875rem;font-weight:600">${b.label}</span>
+            <span style="font-size:0.875rem;color:var(--muted-l)">${b.value} (${total ? Math.round(b.value/total*100) : 0}%)</span>
+          </div>
+          <div style="height:8px;border-radius:99px;background:var(--border)">
+            <div style="height:100%;border-radius:99px;background:${b.color};width:${total ? b.value/total*100 : 0}%;transition:width 1s ease"></div>
+          </div>
+        </div>`
+      ).join('');
+
+      // Chart.js doughnut
+      const ctx = document.getElementById('feedback-chart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Excellent','Moderate','Bad'],
+          datasets: [{
+            data: [excellent, moderate, bad],
+            backgroundColor: ['rgba(16,185,129,0.8)','rgba(245,158,11,0.8)','rgba(239,68,68,0.8)'],
+            borderColor:     ['rgba(16,185,129,1)','rgba(245,158,11,1)','rgba(239,68,68,1)'],
+            borderWidth: 2,
+            hoverOffset: 8,
+          }]
+        },
+        options: {
+          cutout: '65%',
+          plugins: {
+            legend: { position:'bottom', labels:{ color:'#94a3b8', font:{size:12}, padding:16 } }
+          },
+          animation: { animateScale: true, animateRotate: true }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

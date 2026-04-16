@@ -1,0 +1,9 @@
+mysql-connector-python
+tabulate
+matplotlib
+Pillow
+Flask
+Flask-CORS
+python-dotenv
+requests
+APScheduler

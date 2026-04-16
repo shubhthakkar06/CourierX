@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Track Order</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .track-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 2.5rem;
+      max-width: 720px; margin: 0 auto;
+    }
+    .delivery-no {
+      font-size: 2rem; font-weight: 800; letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+      color: var(--success);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div id="navbar"></div>
+
+  <div class="page animate-fade">
+    <div class="page-title">Track Order</div>
+    <p class="page-subtitle">Real-time delivery status for your courier</p>
+
+    <!-- Order Selector -->
+    <div class="track-card" style="margin-bottom:1.5rem">
+      <div style="display:flex;gap:1rem;align-items:flex-end">
+        <div class="form-group" style="flex:1;margin:0">
+          <label>Select Order to Track</label>
+          <select id="order-select" onchange="trackSelected()">
+            <option value="">— Select an order —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="trackSelected()">Track</button>
+      </div>
+    </div>
+
+    <!-- Tracking Result -->
+    <div id="track-result" style="display:none">
+      <div class="track-card">
+
+        <!-- Status Header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;flex-wrap:wrap;gap:1rem">
+          <div>
+            <div style="font-size:0.78rem;color:var(--muted-l);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem">Order ID</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--primary-l)" id="tr-id"></div>
+          </div>
+          <div id="tr-badge"></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline" id="timeline">
+          <!-- injected by JS -->
+        </div>
+
+        <!-- Order Details -->
+        <div class="divider"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1.25rem;margin-top:1rem">
+          <div>
+            <div class="stat-label" style="margin-bottom:0.3rem">Address</div>
+            <div style="font-size:0.875rem;color:var(--text-2)" id="tr-addr"></div>
+          </div>
+          <div>
+            <div class="stat-label" style="margin-bottom:0.3rem">Weight</div>
+            <div style="font-weight:700" id="tr-weight"></div>
+          </div>
+          <div>
+            <div class="stat-label" style="margin-bottom:0.3rem">Price</div>
+            <div style="font-weight:700;color:var(--success)" id="tr-price"></div>
+          </div>
+          <div>
+            <div class="stat-label" style="margin-bottom:0.3rem">Order Date</div>
+            <div id="tr-date"></div>
+          </div>
+        </div>
+
+        <!-- Delivery Number (shown when out for delivery / delivered) -->
+        <div id="delivery-section" style="display:none">
+          <div class="divider"></div>
+          <div class="card" style="background:rgba(16,185,129,0.07);border-color:rgba(16,185,129,0.2);text-align:center;padding:1.5rem">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.5rem">Delivery Agent Contact</div>
+            <div class="delivery-no" id="tr-delno"></div>
+            <p style="font-size:0.8rem;color:var(--muted-l);margin-top:0.5rem">Contact your delivery agent for updates.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    const STAGES = ['Processing','Packaging','Ready to Ship','Shipped','Out for Delivery','Delivered'];
+    const ICONS  = ['⚙️','📦','✅','🚚','🛵','🏠'];
+
+    let orders = [];
+
+    (async () => {
+      const me = await requireAuth();
+      if (!me) return;
+      document.getElementById('navbar').innerHTML = renderNavbar(me.username);
+      setActiveNav();
+
+      const r = await api.get('/api/orders');
+      if (r.ok && r.data.length) {
+        orders = r.data;
+        const sel = document.getElementById('order-select');
+        sel.innerHTML = '<option value="">— Select an order —</option>' +
+          orders.map(o => `<option value="${o.orderID}">#${o.orderID} — ${o.order_date} — ${o.address.slice(0,30)}…</option>`).join('');
+
+        // Auto-track if ?id= param present
+        const qid = new URLSearchParams(location.search).get('id');
+        if (qid) { sel.value = qid; trackSelected(); }
+      } else {
+        document.getElementById('order-select').innerHTML = '<option>No orders found</option>';
+      }
+    })();
+
+    async function trackSelected() {
+      const id = document.getElementById('order-select').value;
+      if (!id) return;
+
+      const r = await api.get(`/api/orders/${id}/track`);
+      if (!r.ok) { showToast(r.data.error || 'Failed to track order.', 'error'); return; }
+
+      const d = r.data;
+      document.getElementById('tr-id').textContent     = `#${d.orderid}`;
+      document.getElementById('tr-badge').innerHTML    = statusBadge(d.step);
+      document.getElementById('tr-addr').textContent   = d.order?.address || '—';
+      document.getElementById('tr-weight').textContent = `${d.order?.weight} kg`;
+      document.getElementById('tr-price').textContent  = `₹${parseInt(d.order?.price || 0).toLocaleString()}`;
+      document.getElementById('tr-date').textContent   = d.order?.order_date || '—';
+
+      // Build timeline
+      const tl = document.getElementById('timeline');
+      tl.innerHTML = STAGES.map((stage, i) => {
+        let cls = '';
+        if (i < d.step)  cls = 'done';
+        if (i === d.step) cls = 'active';
+        return `<div class="timeline-step ${cls}">
+          <div class="timeline-dot">${i < d.step ? '✓' : ICONS[i]}</div>
+          <div class="timeline-label">${stage}</div>
+        </div>`;
+      }).join('');
+
+      // Delivery contact
+      if (d.delivery_no) {
+        document.getElementById('tr-delno').textContent = d.delivery_no;
+        document.getElementById('delivery-section').style.display = '';
+      } else {
+        document.getElementById('delivery-section').style.display = 'none';
+      }
+
+      document.getElementById('track-result').style.display = '';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourierX — Address Book</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div id="navbar"></div>
+
+  <div class="page animate-fade">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;flex-wrap:wrap;gap:1rem">
+      <div>
+        <div class="page-title">Address Book</div>
+        <p class="page-subtitle" style="margin:0">Save delivery addresses for quicker checkout</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Address</button>
+    </div>
+
+    <div id="addr-wrap">
+      <div class="empty"><div class="empty-icon">⏳</div><p>Loading addresses…</p></div>
+    </div>
+  </div>
+
+  <!-- ── Add Address Modal ── -->
+  <div id="modal" style="display:none">
+    <div class="modal-backdrop" onclick="closeModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2>Add New Address</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div id="alert-modal"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Receiver Name</label>
+            <input type="text" id="m-name" placeholder="Full name" maxlength="30" />
+          </div>
+          <div class="form-group">
+            <label>Mobile Number</label>
+            <input type="tel" id="m-mobile" placeholder="10-digit number" maxlength="10" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" id="m-city" placeholder="e.g. Mumbai" maxlength="25" />
+          </div>
+          <div class="form-group">
+            <label>Pincode</label>
+            <input type="text" id="m-pin" placeholder="6-digit pincode" maxlength="6" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Street / Area</label>
+          <input type="text" id="m-street" placeholder="e.g. MG Road, Bandra" maxlength="25" />
+        </div>
+        <div class="form-group">
+          <label>House No. / Society / Hotel</label>
+          <input type="text" id="m-house" placeholder="e.g. Flat 4B, Shyam Nagar" maxlength="25" />
+        </div>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:0.5rem">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="btn-add" onclick="addAddress()">Save Address</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => {
+      const me = await requireAuth();
+      if (!me) return;
+      document.getElementById('navbar').innerHTML = renderNavbar(me.username);
+      setActiveNav();
+      await loadAddresses();
+    })();
+
+    async function loadAddresses() {
+      const r = await api.get('/api/addresses');
+      const wrap = document.getElementById('addr-wrap');
+      if (!r.ok || !r.data.length) {
+        wrap.innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">🏠</div>
+            <h3>No addresses saved</h3>
+            <p>Add your first delivery address to get started.</p>
+            <button class="btn btn-primary" style="margin-top:0.75rem" onclick="openModal()">+ Add Address</button>
+          </div>`;
+        return;
+      }
+      wrap.innerHTML = `<div class="address-grid animate-fade">${r.data.map(a => `
+        <div class="address-card">
+          <div class="name">${a.reciever_name}</div>
+          <div class="detail">📱 ${a.reciever_no}</div>
+          <div class="detail">🏠 ${a.reciever_house}, ${a.reciever_street}</div>
+          <div class="detail">🌆 ${a.reciever_city} — ${a.pincode}</div>
+        </div>`).join('')}</div>`;
+    }
+
+    function openModal()  { document.getElementById('modal').style.display = ''; clearAlert('alert-modal'); }
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+    async function addAddress() {
+      const name   = document.getElementById('m-name').value.trim();
+      const mobile = document.getElementById('m-mobile').value.trim();
+      const city   = document.getElementById('m-city').value.trim();
+      const pin    = document.getElementById('m-pin').value.trim();
+      const street = document.getElementById('m-street').value.trim();
+      const house  = document.getElementById('m-house').value.trim();
+
+      if (!name || !mobile || !city || !pin || !street || !house)
+        return setAlert('alert-modal', 'Please fill in all fields.');
+
+      const btn = document.getElementById('btn-add');
+      setLoading(btn, true);
+      const r = await api.post('/api/addresses', { name, mobile, city, pincode: pin, street, house });
+      setLoading(btn, false);
+
+      if (r.ok) {
+        showToast('Address saved!', 'success');
+        closeModal();
+        await loadAddresses();
+        // Clear form
+        ['m-name','m-mobile','m-city','m-pin','m-street','m-house'].forEach(id => document.getElementById(id).value = '');
+      } else {
+        setAlert('alert-modal', r.data.error || 'Failed to save address.');
+      }
+    }
+  </script>
+</body>
+</html>
