@@ -75,7 +75,7 @@
       <div id="tab-users">
         <h2 style="margin-bottom:1rem">👥 Registered Users</h2>
         <div class="table-wrap">
-          <table><thead><tr><th>Email</th><th>Username</th><th>Date of Birth</th></tr></thead>
+          <table><thead><tr><th>Email</th><th>Username</th><th>Date of Birth</th><th>Actions</th></tr></thead>
           <tbody id="tbl-users"></tbody></table>
         </div>
       </div>
@@ -84,7 +84,7 @@
       <div id="tab-addresses" style="display:none">
         <h2 style="margin-bottom:1rem">🏠 All Addresses</h2>
         <div class="table-wrap">
-          <table><thead><tr><th>User</th><th>Receiver</th><th>City</th><th>Pincode</th><th>Mobile</th></tr></thead>
+          <table><thead><tr><th>User</th><th>Receiver</th><th>City</th><th>Pincode</th><th>Mobile</th><th>Actions</th></tr></thead>
           <tbody id="tbl-addresses"></tbody></table>
         </div>
       </div>
@@ -93,8 +93,26 @@
       <div id="tab-orders" style="display:none">
         <h2 style="margin-bottom:1rem">📦 All Orders</h2>
         <div class="table-wrap">
-          <table><thead><tr><th>Order ID</th><th>User</th><th>Weight</th><th>Price</th><th>Date</th><th>Address</th></tr></thead>
+          <table><thead><tr><th>Order ID</th><th>User</th><th>Weight</th><th>Price</th><th>Date</th><th>Address</th><th>Actions</th></tr></thead>
           <tbody id="tbl-orders"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Admin Generic Modal ── -->
+  <div id="admin-modal" style="display:none">
+    <div class="modal-backdrop" onclick="closeAdminModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2 id="am-title">Edit Entry</h2>
+          <button class="modal-close" onclick="closeAdminModal()">✕</button>
+        </div>
+        <div id="am-alert"></div>
+        <div id="am-body"></div>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem">
+          <button class="btn btn-ghost" onclick="closeAdminModal()">Cancel</button>
+          <button class="btn btn-primary" id="am-btn" onclick="submitAdminModal()">Save</button>
         </div>
       </div>
     </div>
@@ -144,25 +162,49 @@
       document.getElementById('ad-orders').textContent = orders.length;
 
       // Populate tables
-      document.getElementById('tbl-users').innerHTML = users.map(u =>
-        `<tr><td>${u.userid}</td><td>${u.username}</td><td>${u.DOB || '—'}</td></tr>`
-      ).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted)">No users</td></tr>';
+      document.getElementById('tbl-users').innerHTML = users.map(u => {
+        const p = encodeURIComponent(JSON.stringify(u));
+        return `<tr>
+          <td>${u.userid}</td><td>${u.username}</td><td>${u.DOB || '—'}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="editUser('${p}')">✏️ Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteUser('${u.userid}')">🗑 Delete</button>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No users</td></tr>';
 
-      document.getElementById('tbl-addresses').innerHTML = addrs.map(a =>
-        `<tr><td>${a.userid}</td><td>${a.reciever_name}</td><td>${a.reciever_city}</td><td>${a.pincode}</td><td>${a.reciever_no}</td></tr>`
-      ).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No addresses</td></tr>';
+      document.getElementById('tbl-addresses').innerHTML = addrs.map(a => {
+        const p = encodeURIComponent(JSON.stringify(a));
+        return `<tr>
+          <td>${a.userid}</td><td>${a.reciever_name}</td><td>${a.reciever_city}</td><td>${a.pincode}</td><td>${a.reciever_no}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="editAddress('${p}')">✏️ Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteAddress('${a.userid}', '${a.reciever_no}')">🗑 Delete</button>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No addresses</td></tr>';
 
-      document.getElementById('tbl-orders').innerHTML = orders.map(o =>
-        `<tr>
+      document.getElementById('tbl-orders').innerHTML = orders.map(o => {
+        const p = encodeURIComponent(JSON.stringify(o));
+        return `<tr>
           <td><code style="color:var(--primary-l)">#${o.orderID}</code></td>
           <td>${o.userid}</td><td>${o.weight} kg</td>
           <td style="color:var(--success);font-weight:700">₹${parseInt(o.price).toLocaleString()}</td>
           <td>${o.order_date}</td>
           <td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.address}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="editOrder('${p}')">✏️ Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteOrder('${o.orderID}')">🗑 Cancel</button>
+          </td>
         </tr>`
-      ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">No orders</td></tr>';
+      }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders</td></tr>';
 
       showTab('users');
+    }
+
+    async function reloadAdminData() {
+        const usersR = await api.get('/api/admin/users');
+        if(usersR.ok) showDashboard(usersR);
     }
 
     function showTab(tab) {
@@ -170,6 +212,120 @@
         document.getElementById(`tab-${t}`).style.display     = t === tab ? '' : 'none';
         document.getElementById(`link-${t}`).classList.toggle('active', t === tab);
       });
+    }
+
+    async function deleteUser(uid) {
+        if(!confirm(`Delete user ${uid}? This will erase all their orders and addresses.`)) return;
+        const r = await api.del(`/api/admin/users/${uid}`);
+        if(r.ok) { showToast('User deleted', 'success'); reloadAdminData(); }
+        else setAlert('alert-login', r.data.error || 'Failed');
+    }
+
+    async function deleteOrder(oid) {
+        if(!confirm(`Force cancel Order #${oid}?`)) return;
+        const r = await api.del(`/api/admin/orders/${oid}`);
+        if(r.ok) { showToast('Order cancelled', 'success'); reloadAdminData(); }
+        else setAlert('alert-login', r.data.error || 'Failed');
+    }
+
+    async function deleteAddress(uid, rec_no) {
+        if(!confirm(`Delete this address?`)) return;
+        const r = await api.del(`/api/admin/addresses`, { userid: uid, reciever_no: rec_no });
+        if(r.ok) { showToast('Address deleted', 'success'); reloadAdminData(); }
+        else setAlert('alert-login', r.data.error || 'Failed');
+    }
+
+    let currentEdit = null;
+
+    function openAdminModal(title, html, type) {
+        document.getElementById('am-title').innerText = title;
+        document.getElementById('am-body').innerHTML = html;
+        document.getElementById('admin-modal').style.display = '';
+        currentEdit = type;
+        clearAlert('am-alert');
+    }
+
+    function closeAdminModal() {
+        document.getElementById('admin-modal').style.display = 'none';
+        currentEdit = null;
+    }
+
+    function editUser(p) {
+        const u = JSON.parse(decodeURIComponent(p));
+        const html = `
+            <div class="form-group"><label>Email (ID - Cannot be changed)</label><input type="text" disabled value="${u.userid}" /></div>
+            <div class="form-group"><label>Username</label><input type="text" id="eu-name" value="${u.username}" /></div>
+            <div class="form-group"><label>Mobile</label><input type="text" id="eu-mob" value="${u.mobile || ''}" /></div>
+            <div class="form-group"><label>DOB</label><input type="date" id="eu-dob" value="${u.DOB || ''}" /></div>
+        `;
+        openAdminModal('Edit User', html, {type: 'user', id: u.userid});
+    }
+
+    function editAddress(p) {
+        const a = JSON.parse(decodeURIComponent(p));
+        const html = `
+            <div class="form-group"><label>Receiver Name</label><input type="text" id="ea-name" value="${a.reciever_name}" /></div>
+            <div class="form-group"><label>Mobile (Current: ${a.reciever_no})</label><input type="text" id="ea-mob" value="${a.reciever_no}" /></div>
+            <div class="form-group"><label>Pincode</label><input type="text" id="ea-pin" value="${a.pincode}" /></div>
+            <div class="form-group"><label>City</label><input type="text" id="ea-city" value="${a.reciever_city}" /></div>
+            <div class="form-group"><label>Street</label><input type="text" id="ea-str" value="${a.reciever_street}" /></div>
+            <div class="form-group"><label>House</label><input type="text" id="ea-hse" value="${a.reciever_house}" /></div>
+        `;
+        openAdminModal('Edit Address', html, {type: 'address', uid: a.userid, recno: a.reciever_no});
+    }
+
+    function editOrder(p) {
+        const o = JSON.parse(decodeURIComponent(p));
+        const html = `
+            <div class="form-group"><label>Weight (kg)</label><input type="number" id="eo-wt" value="${o.weight}" /></div>
+            <div class="form-group"><label>Price (₹)</label><input type="number" id="eo-pr" value="${o.price}" /></div>
+            <div class="form-group"><label>Delivery Address</label><input type="text" id="eo-addr" value="${o.address}" /></div>
+        `;
+        openAdminModal(`Edit Order #${o.orderID}`, html, {type: 'order', id: o.orderID});
+    }
+
+    async function submitAdminModal() {
+        if(!currentEdit) return;
+        const btn = document.getElementById('am-btn');
+        setLoading(btn, true);
+        let r;
+        
+        if(currentEdit.type === 'user') {
+            const body = {
+                username: document.getElementById('eu-name').value.trim(),
+                mobile: document.getElementById('eu-mob').value.trim(),
+                dob: document.getElementById('eu-dob').value
+            };
+            r = await api.put(`/api/admin/users/${currentEdit.id}`, body);
+        } else if(currentEdit.type === 'address') {
+            const body = {
+                userid: currentEdit.uid,
+                reciever_no: currentEdit.recno,
+                new_reciever_no: document.getElementById('ea-mob').value.trim(),
+                reciever_name: document.getElementById('ea-name').value.trim(),
+                pincode: document.getElementById('ea-pin').value.trim(),
+                reciever_city: document.getElementById('ea-city').value.trim(),
+                reciever_street: document.getElementById('ea-str').value.trim(),
+                reciever_house: document.getElementById('ea-hse').value.trim()
+            };
+            r = await api.put(`/api/admin/addresses`, body);
+        } else if(currentEdit.type === 'order') {
+            const body = {
+                weight: document.getElementById('eo-wt').value,
+                price: document.getElementById('eo-pr').value,
+                address: document.getElementById('eo-addr').value
+            };
+            r = await api.put(`/api/admin/orders/${currentEdit.id}`, body);
+        }
+
+        setLoading(btn, false);
+        if(r && r.ok) {
+            showToast('Saved successfully', 'success');
+            closeAdminModal();
+            reloadAdminData();
+        } else {
+            setAlert('am-alert', r ? r.data.error : 'Failed to update');
+        }
     }
 
     async function adminLogout() {

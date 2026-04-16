@@ -430,7 +430,13 @@ def cancel_order(order_id):
     except Exception:
         pass
 
+    user = query_db('SELECT mobile FROM user WHERE userid=%s', (uid,), fetchone=True)
+    if user and user.get('mobile'):
+        from backend.sms import send_order_sms
+        send_order_sms(user['mobile'], order_id, 'Cancelled_User')
+
     query_db('DELETE FROM orders WHERE orderid=%s', (order_id,), commit=True)
+    query_db('DELETE FROM delivery WHERE orderid=%s', (order_id,), commit=True)
     return jsonify(message='Order cancelled successfully'), 200
 
 
@@ -535,6 +541,116 @@ def admin_orders():
         return jsonify(error='Unauthorized'), 401
     rows = query_db('SELECT * FROM orders')
     return jsonify(rows), 200
+
+
+@app.route('/api/admin/users/<string:uid>', methods=['PUT', 'DELETE'])
+def admin_user_modify(uid):
+    if not session.get('admin'):
+        return jsonify(error='Unauthorized'), 401
+    uid = uid.lower().strip()
+    
+    if request.method == 'DELETE':
+        query_db('DELETE FROM addresses WHERE userid=%s', (uid,), commit=True)
+        query_db("UPDATE orders SET userid='Deleted Account' WHERE userid=%s", (uid,), commit=True)
+        query_db('DELETE FROM user WHERE userid=%s', (uid,), commit=True)
+        return jsonify(message='User deleted successfully'), 200
+
+    if request.method == 'PUT':
+        d = request.json or {}
+        n_username = d.get('username')
+        n_dob      = d.get('dob')
+        n_mobile   = d.get('mobile')
+        
+        updates = []
+        params = []
+        if n_username: updates.append("username=%s"); params.append(n_username)
+        if n_dob:      updates.append("DOB=%s");      params.append(n_dob)
+        if n_mobile:   updates.append("mobile=%s");   params.append(n_mobile)
+            
+        if updates:
+            params.append(uid)
+            q = f"UPDATE user SET {', '.join(updates)} WHERE userid=%s"
+            query_db(q, tuple(params), commit=True)
+        return jsonify(message='User updated successfully'), 200
+
+
+@app.route('/api/admin/addresses', methods=['PUT', 'DELETE'])
+def admin_addresses_modify():
+    if not session.get('admin'):
+        return jsonify(error='Unauthorized'), 401
+    d = request.json or {}
+    uid = d.get('userid')
+    reciever_no = d.get('reciever_no')
+    
+    if not uid or not reciever_no:
+        return jsonify(error='userid and reciever_no are required'), 400
+
+    if request.method == 'DELETE':
+        query_db('DELETE FROM addresses WHERE userid=%s AND reciever_no=%s', (uid, reciever_no), commit=True)
+        return jsonify(message='Address deleted successfully'), 200
+
+    if request.method == 'PUT':
+        n_name  = d.get('reciever_name')
+        n_city  = d.get('reciever_city')
+        n_pin   = d.get('pincode')
+        n_mob   = d.get('new_reciever_no')
+        n_str   = d.get('reciever_street')
+        n_house = d.get('reciever_house')
+        
+        upd = []
+        par = []
+        if n_name:  upd.append('reciever_name=%s');   par.append(n_name)
+        if n_city:  upd.append('reciever_city=%s');   par.append(n_city)
+        if n_pin:   upd.append('pincode=%s');         par.append(n_pin)
+        if n_mob:   upd.append('reciever_no=%s');     par.append(n_mob)
+        if n_str:   upd.append('reciever_street=%s'); par.append(n_str)
+        if n_house: upd.append('reciever_house=%s');  par.append(n_house)
+        
+        if upd:
+            par.extend([uid, reciever_no])
+            q = f"UPDATE addresses SET {', '.join(upd)} WHERE userid=%s AND reciever_no=%s"
+            query_db(q, tuple(par), commit=True)
+        return jsonify(message='Address updated successfully'), 200
+
+
+@app.route('/api/admin/orders/<int:order_id>', methods=['PUT', 'DELETE'])
+def admin_orders_modify(order_id):
+    if not session.get('admin'):
+        return jsonify(error='Unauthorized'), 401
+
+    if request.method == 'DELETE':
+        # Send forced cancellation SMS
+        user_row = query_db('''
+            SELECT u.mobile 
+            FROM orders o 
+            JOIN user u ON o.userid = u.userid 
+            WHERE o.orderid=%s
+        ''', (order_id,), fetchone=True)
+        if user_row and user_row.get('mobile'):
+            from backend.sms import send_order_sms
+            send_order_sms(user_row['mobile'], order_id, 'Cancelled_Admin')
+
+        query_db('DELETE FROM orders WHERE orderid=%s', (order_id,), commit=True)
+        query_db('DELETE FROM delivery WHERE orderid=%s', (order_id,), commit=True)
+        return jsonify(message='Order deleted successfully'), 200
+
+    if request.method == 'PUT':
+        d = request.json or {}
+        n_address = d.get('address')
+        n_weight  = d.get('weight')
+        n_price   = d.get('price')
+        
+        upd = []
+        par = []
+        if n_address: upd.append('address=%s'); par.append(n_address)
+        if n_weight:  upd.append('weight=%s');  par.append(n_weight)
+        if n_price:   upd.append('price=%s');   par.append(n_price)
+        
+        if upd:
+            par.append(order_id)
+            q = f"UPDATE orders SET {', '.join(upd)} WHERE orderid=%s"
+            query_db(q, tuple(par), commit=True)
+        return jsonify(message='Order updated successfully'), 200
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────

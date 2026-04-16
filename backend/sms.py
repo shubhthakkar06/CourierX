@@ -1,32 +1,41 @@
 """
-sms.py — Fast2SMS Integration
+sms.py — Twilio SMS Integration
 Handles OTP generation/verification and order status SMS.
 
-Fast2SMS API Key: get from https://www.fast2sms.com → Developer → API
-Add to .env:  FAST2SMS_API_KEY=your_key_here
+Twilio Account: get from https://console.twilio.com/
+Add to .env:  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 """
 
 import os
 import random
 import time
 import requests
+import threading
 from backend.db import query_db
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-FAST2SMS_KEY = os.getenv('FAST2SMS_API_KEY', '')
-F2S_URL      = 'https://www.fast2sms.com/dev/bulkV2'
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN  = os.getenv('TWILIO_AUTH_TOKEN', '')
+TWILIO_PHONE_NUM   = os.getenv('TWILIO_PHONE_NUMBER', '')
+TWILIO_URL         = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def _clean(mobile: str) -> str:
-    """Strip country code and spaces → 10-digit number."""
-    return mobile.replace('+91', '').replace(' ', '').strip()
+    """Ensure standard E.164 format limit. Defaults to +91 if missing."""
+    clean_num = mobile.replace(' ', '').strip()
+    if not clean_num.startswith('+'):
+        # If lengths match local number, prefix with +91
+        if len(clean_num) == 10:
+            return f"+91{clean_num}"
+        return f"+{clean_num}"
+    return clean_num
 
 
 def _enabled() -> bool:
-    if not FAST2SMS_KEY:
-        print('[SMS] FAST2SMS_API_KEY not set — SMS disabled')
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUM:
+        print('[SMS] Twilio credentials not set — SMS disabled')
         return False
     return True
 
@@ -54,20 +63,24 @@ def send_otp(mobile: str) -> tuple[bool, str]:
     if not _enabled():
         # Dev mode — print OTP to console so developer can test without SMS
         print(f'[SMS-DEV] OTP for {number}: {otp}')
-        return True, 'OTP printed to console (SMS key not set)'
+        return True, 'OTP printed to console (Twilio credentials not set)'
 
     try:
         r = requests.post(
-            F2S_URL,
-            json={'route': 'otp', 'variables_values': otp, 'numbers': number, 'flash': 0},
-            headers={'authorization': FAST2SMS_KEY, 'Content-Type': 'application/json'},
+            TWILIO_URL,
+            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+            data={
+                'To': number,
+                'From': TWILIO_PHONE_NUM,
+                'Body': f'Your CourierX verification code is: {otp}. This code expires in 10 minutes.'
+            },
             timeout=10
         )
         data = r.json()
-        if data.get('return'):
+        if r.status_code in (200, 201):
             return True, 'OTP sent successfully'
-        err = data.get('message', ['SMS send failed'])[0] if isinstance(data.get('message'), list) else str(data.get('message', 'Failed'))
-        return False, err
+        err = data.get('message', 'SMS send failed')
+        return False, str(err)
     except Exception as e:
         return False, f'SMS error: {str(e)}'
 
@@ -96,18 +109,7 @@ def verify_otp(mobile: str, code: str) -> tuple[bool, str]:
 
 
 # ── Order Status SMS ───────────────────────────────────────────────────────────
-# ── Stage → short numeric code sent via OTP route ─────────────────────────────
-# DLT (TRAI) registration is required for custom-text SMS in India.
-# Until DLT is registered, we send the delivery stage NUMBER via the OTP route
-# so the user at least gets a real SMS. Message reads:
-#   "Your OTP for Fast2SMS is <stage_step>. This OTP is valid for 10 minutes."
-# Stage map: 0=Processing 1=Packaging 2=ReadyToShip 3=Shipped 4=OutForDelivery 5=Delivered
-_STAGE_NUM = {
-    'Processing': '10', 'Packaging': '20', 'Ready to Ship': '30',
-    'Shipped': '40', 'Out for Delivery': '50', 'Delivered': '60',
-}
-
-# Full messages for console log (shown when DLT SMS is available or in dev)
+# Messages for order status updates sent to the user
 _STAGE_MSG = {
     'Processing':       'CourierX: Order #{id} received & is being processed.',
     'Packaging':        'CourierX: Order #{id} is being packaged.',
@@ -115,38 +117,44 @@ _STAGE_MSG = {
     'Shipped':          'CourierX: Order #{id} has been shipped!',
     'Out for Delivery': 'CourierX: Order #{id} is OUT FOR DELIVERY today!',
     'Delivered':        'CourierX: Order #{id} DELIVERED! Thank you for using CourierX.',
+    'Cancelled_User':   'CourierX: Your order #{id} has been successfully cancelled.',
+    'Cancelled_Admin':  "CourierX: We're sorry for the inconvenience, but your order #{id} has been cancelled by our system administrator."
 }
+
+
+def _send_twilio_async(number: str, message_body: str, stage: str):
+    """Background task to avoid blocking the user API route."""
+    try:
+        r = requests.post(
+            TWILIO_URL,
+            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+            data={
+                'To': number,
+                'From': TWILIO_PHONE_NUM,
+                'Body': message_body
+            },
+            timeout=10
+        )
+        data = r.json()
+        if r.status_code in (200, 201):
+            print(f'[SMS] Order notification sent → {number} | Stage: {stage}')
+        else:
+            print(f'[SMS] Order SMS failed: {data}')
+    except Exception as e:
+        print(f'[SMS] Order SMS error: {e}')
 
 
 def send_order_sms(mobile: str, order_id: int, stage: str) -> bool:
     """
-    Send an order status SMS via Fast2SMS.
-    Uses OTP route (no DLT needed) — sends stage number so user knows something changed.
-    Upgrade to DLT route for full custom messages in production.
+    Spawns an asynchronous background thread to send an order status SMS via Twilio.
     """
     number  = _clean(mobile)
-    log_msg = _STAGE_MSG.get(stage, f'Order #{order_id}: {stage}').replace('{id}', str(order_id))
+    message_body = _STAGE_MSG.get(stage, f'CourierX Order #{order_id}: {stage}').replace('{id}', str(order_id))
 
     if not _enabled():
-        print(f'[SMS-DEV] Order SMS to {number}: {log_msg}')
+        print(f'[SMS-DEV] Order SMS to {number}: {message_body}')
         return True
 
-    # Use OTP route (no DLT) — stage code as the variable
-    stage_code = _STAGE_NUM.get(stage, '99')
-    try:
-        r = requests.post(
-            F2S_URL,
-            json={'route': 'otp', 'variables_values': stage_code, 'numbers': number, 'flash': 0},
-            headers={'authorization': FAST2SMS_KEY, 'Content-Type': 'application/json'},
-            timeout=10
-        )
-        data = r.json()
-        success = bool(data.get('return'))
-        if success:
-            print(f'[SMS] Order notification sent → {number} | Stage: {stage}')
-        else:
-            print(f'[SMS] Order SMS failed: {data}')
-        return success
-    except Exception as e:
-        print(f'[SMS] Order SMS error: {e}')
-        return False
+    # Fire and forget asynchronously
+    threading.Thread(target=_send_twilio_async, args=(number, message_body, stage)).start()
+    return True

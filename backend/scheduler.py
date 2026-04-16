@@ -60,7 +60,7 @@ def start_scheduler():
     scheduler.add_job(
         check_and_notify,
         trigger='interval',
-        hours=6,
+        seconds=5,
         id='order_notify',
         replace_existing=True,
         max_instances=1,
