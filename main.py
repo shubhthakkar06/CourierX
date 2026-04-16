@@ -14,9 +14,12 @@ from backend.app import app
 import os
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5001))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    
     print('\n┌─────────────────────────────────────────────┐')
     print('│  📦  CourierX  ·  Full-Stack Web App       │')
-    print('│  🌐  http://localhost:5001                  │')
+    print(f'│  🌐  http://localhost:{port}                 │')
     print('└─────────────────────────────────────────────┘\n')
     
     # Start order-notification scheduler inside the worker process
@@ -24,4 +27,4 @@ if __name__ == '__main__':
         from backend.scheduler import start_scheduler
         start_scheduler()
 
-    app.run(debug=True, port=5001)
+    app.run(debug=debug, port=port, host='0.0.0.0')

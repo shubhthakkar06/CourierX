@@ -7,3 +7,5 @@ Flask-CORS
 python-dotenv
 requests
 APScheduler
+gunicorn
+Werkzeug
