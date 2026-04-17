@@ -655,8 +655,9 @@ def admin_orders_modify(order_id):
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
-    # Start order-notification scheduler (only in the reloaded worker, not the watcher)
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    # Start order-notification scheduler
+    is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    if not app.debug or is_reloader:
         from backend.scheduler import start_scheduler
         start_scheduler()
 

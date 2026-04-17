@@ -22,8 +22,11 @@ if __name__ == '__main__':
     print(f'│  🌐  http://localhost:{port}                 │')
     print('└─────────────────────────────────────────────┘\n')
     
-    # Start order-notification scheduler inside the worker process
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    # Start order-notification scheduler
+    # In debug mode, Flask runs two processes; we only want to start the scheduler in the worker.
+    # In production (non-debug), we start it immediately.
+    is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    if not debug or is_reloader:
         from backend.scheduler import start_scheduler
         start_scheduler()
 

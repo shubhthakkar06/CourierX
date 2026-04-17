@@ -40,6 +40,7 @@ def check_and_notify():
             last  = o['last_notified_step'] if o['last_notified_step'] is not None else -1
 
             if step > last:
+                log.info(f'[Scheduler] Notifying Order #{o["orderID"]} (Stage: {STAGES[step]})')
                 ok = send_order_sms(o['mobile'], o['orderID'], STAGES[step])
                 if ok:
                     query_db(
@@ -47,6 +48,10 @@ def check_and_notify():
                         (step, o['orderID']), commit=True
                     )
                     notified += 1
+                else:
+                    log.warning(f'[Scheduler] SMS failed for Order #{o["orderID"]}')
+            else:
+                log.debug(f'[Scheduler] Order #{o["orderID"]} still at step {step} (last notified: {last})')
         except Exception as e:
             log.warning(f'[Scheduler] Order {o.get("orderID")} error: {e}')
 
@@ -66,5 +71,5 @@ def start_scheduler():
         max_instances=1,
     )
     scheduler.start()
-    log.info('[Scheduler] Order notification job started (every 6 h)')
+    log.info('[Scheduler] Background order-status job started (polling every 5s)')
     return scheduler

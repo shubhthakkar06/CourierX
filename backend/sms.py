@@ -137,11 +137,11 @@ def _send_twilio_async(number: str, message_body: str, stage: str):
         )
         data = r.json()
         if r.status_code in (200, 201):
-            print(f'[SMS] Order notification sent → {number} | Stage: {stage}')
+            print(f'[SMS] Success: Order SMS sent to {number} | Stage: {stage}')
         else:
-            print(f'[SMS] Order SMS failed: {data}')
+            print(f'[SMS] Twilio Error: {r.status_code} | {data.get("message", data)}')
     except Exception as e:
-        print(f'[SMS] Order SMS error: {e}')
+        print(f'[SMS] Connection Error: {e}')
 
 
 def send_order_sms(mobile: str, order_id: int, stage: str) -> bool:
