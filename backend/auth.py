@@ -79,22 +79,27 @@ def rpd2():
             print("+-----------------------------------------+")
             print("|  Your Have", 3 - int(i[0]), "Attempts left  |")
             print("+-----------------------------------------+")
-            rpd1()
+            # rpd1() is called by pdw() on failure
             pds()
             pdw()
         else:
             print("+------------------------------------+")
             print("|  To many attempts Reset passwords  |")
             print("+------------------------------------+")
-            val = (1, int(data2[0][0]))
-            query = "update wpd set attemps=%s where attemps=%s"
-            cursor.execute(query, val)
-            con.commit()
             rpwd()
 
 
 def pdw():
     """Verify the entered password against the database."""
+    cursor.execute("select attemps from wpd")
+    att = cursor.fetchone()
+    if att and att[0] >= 3:
+        print("+------------------------------------+")
+        print("|  To many attempts Reset passwords  |")
+        print("+------------------------------------+")
+        rpwd()
+        return
+
     val = (urid,)
     query = "select password from user where userid = %s"
     cursor.execute(query, val)
@@ -105,12 +110,7 @@ def pdw():
             print('|  SignIn Successful  |')
             print("+---------------------+")
             time.sleep(1)
-            cursor.execute("select attemps from wpd")
-            data3 = cursor.fetchall()
-            val = (1, int(data3[0][0]))
-            query = "update wpd set attemps=%s where attemps=%s"
-            cursor.execute(query, val)
-            con.commit()
+            query_db("UPDATE wpd SET attemps=1", commit=True)
             lastlogin2(urid)
             lastlogin1(urid)
             _menu()
@@ -118,8 +118,8 @@ def pdw():
             print("+----------------------+")
             print("|  Incorrect Password  |")
             print("+----------------------+")
-            rpd2()
             rpd1()
+            rpd2()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

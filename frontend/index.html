@@ -251,6 +251,12 @@
         setTimeout(() => window.location.href = '/dashboard.html', 800);
       } else {
         setAlert('alert-signin', r.data.error || 'Sign in failed.');
+        if (r.status === 403 || r.data.locked) {
+          setTimeout(() => {
+            showForgotPane();
+            document.getElementById('forgot-email').value = email;
+          }, 1500);
+        }
       }
     }
 

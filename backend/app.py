@@ -167,11 +167,13 @@ def signin():
     wpd      = query_db('SELECT attemps FROM wpd', fetchone=True)
     attempts = wpd['attemps'] if wpd else 1
 
+    if attempts >= 3:
+        return jsonify(error='Too many failed attempts. Please reset your password.', locked=True), 403
+
     if user['password'] != password:
-        if attempts >= 3:
-            query_db('UPDATE wpd SET attemps=1', commit=True)
-            return jsonify(error='Too many failed attempts. Please reset your password.', locked=True), 403
         query_db('UPDATE wpd SET attemps=%s', (attempts + 1,), commit=True)
+        if attempts + 1 >= 3:
+            return jsonify(error='Too many failed attempts. Please reset your password.', locked=True), 403
         return jsonify(error=f'Incorrect password — {3 - attempts} attempt(s) left'), 401
 
     query_db('UPDATE wpd SET attemps=1', commit=True)
