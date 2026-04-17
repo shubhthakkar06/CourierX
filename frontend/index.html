@@ -69,6 +69,54 @@
           <input type="password" id="si-pwd" placeholder="Your password" />
         </div>
         <button class="btn btn-primary btn-full" id="btn-signin" onclick="doSignIn()">Sign In</button>
+        <div style="margin-top:0.75rem;text-align:right">
+          <button class="btn btn-ghost btn-sm" onclick="showForgotPane()" style="font-size:0.75rem;color:var(--primary-l)">Forgot Password?</button>
+        </div>
+      </div>
+
+      <!-- ══════════ FORGOT PASSWORD (2 steps) ══════════ -->
+      <div id="pane-forgot" style="display:none">
+        <h3 style="margin-bottom:1rem;text-align:center">Reset Password</h3>
+        
+        <!-- Step 1: Request OTP -->
+        <div id="forgot-step1">
+          <div id="alert-forgot"></div>
+          <p style="color:var(--muted-l);font-size:0.875rem;margin-bottom:1.25rem;text-align:center">
+            Enter your registered email ID to receive a verification OTP.
+          </p>
+          <div class="form-group">
+            <label>Email ID</label>
+            <input type="email" id="forgot-email" placeholder="you@gmail.com" />
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-forgot-request" onclick="requestResetOtp()">
+            Send Reset OTP →
+          </button>
+          <button class="btn btn-ghost btn-full" style="margin-top:0.5rem" onclick="switchTab('signin')">
+             ← Back to Login
+          </button>
+        </div>
+
+        <!-- Step 2: Verify & Reset -->
+        <div id="forgot-step2" style="display:none">
+          <div id="alert-reset"></div>
+          <p style="color:var(--muted-l);font-size:0.875rem;margin-bottom:1.25rem;text-align:center">
+            Enter the OTP sent to <strong style="color:var(--text)" id="reset-mobile-display"></strong> and your new password.
+          </p>
+          <div class="form-group">
+            <label>OTP Code</label>
+            <input type="text" id="reset-otp" class="otp-input" placeholder="– – – – – –" maxlength="6" />
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="reset-pwd" placeholder="Min 8, include @, 1 UPPERCASE" />
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-reset-submit" onclick="doResetPassword()">
+            Reset Password ✓
+          </button>
+          <button class="btn btn-ghost btn-full" style="margin-top:0.5rem" onclick="showForgotPane()">
+            ← Change Email
+          </button>
+        </div>
       </div>
 
       <!-- ══════════ SIGN UP (2 steps) ══════════ -->
@@ -172,9 +220,21 @@
     function switchTab(tab) {
       document.getElementById('pane-signin').style.display = tab === 'signin' ? '' : 'none';
       document.getElementById('pane-signup').style.display = tab === 'signup' ? '' : 'none';
+      document.getElementById('pane-forgot').style.display = 'none';
       document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
       document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-      clearAlert('alert-signin'); clearAlert('alert-signup');
+      clearAlert('alert-signin'); clearAlert('alert-signup'); clearAlert('alert-forgot'); clearAlert('alert-reset');
+    }
+
+    function showForgotPane() {
+      document.getElementById('pane-signin').style.display = 'none';
+      document.getElementById('pane-signup').style.display = 'none';
+      document.getElementById('pane-forgot').style.display = '';
+      document.getElementById('tab-signin').classList.remove('active');
+      document.getElementById('tab-signup').classList.remove('active');
+      document.getElementById('forgot-step1').style.display = '';
+      document.getElementById('forgot-step2').style.display = 'none';
+      clearAlert('alert-forgot');
     }
 
     // ── Sign In ──────────────────────────────────────────────────────
@@ -266,6 +326,55 @@
         setTimeout(() => window.location.href = '/dashboard.html', 900);
       } else {
         setAlert('alert-otp', r.data.error || 'Sign up failed.');
+      }
+    }
+
+    // ── Forgot Password ──────────────────────────────────────────────
+    let resetMobile = '';
+
+    async function requestResetOtp() {
+      const email = document.getElementById('forgot-email').value.trim();
+      if (!email) return setAlert('alert-forgot', 'Please enter your email.');
+      
+      const btn = document.getElementById('btn-forgot-request');
+      setLoading(btn, true);
+      const r = await api.post('/api/auth/forgot-password/request', { userid: email });
+      setLoading(btn, false);
+
+      if (r.ok) {
+        resetMobile = r.data.mobile;
+        document.getElementById('reset-mobile-display').textContent = `+91 ${resetMobile.slice(0,2)}****${resetMobile.slice(-2)}`;
+        document.getElementById('forgot-step1').style.display = 'none';
+        document.getElementById('forgot-step2').style.display = '';
+        showToast('Reset OTP sent!', 'success');
+      } else {
+        setAlert('alert-forgot', r.data.error || 'Request failed.');
+      }
+    }
+
+    async function doResetPassword() {
+      const email = document.getElementById('forgot-email').value.trim();
+      const otp   = document.getElementById('reset-otp').value.trim();
+      const pwd   = document.getElementById('reset-pwd').value;
+
+      if (!otp || !pwd) return setAlert('alert-reset', 'Fill in all fields.');
+      if (otp.length !== 6) return setAlert('alert-reset', 'Enter 6-digit OTP.');
+
+      const btn = document.getElementById('btn-reset-submit');
+      setLoading(btn, true);
+      const r = await api.post('/api/auth/forgot-password/reset', { 
+        userid: email, 
+        mobile: resetMobile, 
+        otp_code: otp, 
+        password: pwd 
+      });
+      setLoading(btn, false);
+
+      if (r.ok) {
+        showToast(r.data.message, 'success');
+        setTimeout(() => switchTab('signin'), 1500);
+      } else {
+        setAlert('alert-reset', r.data.error || 'Reset failed.');
       }
     }
 

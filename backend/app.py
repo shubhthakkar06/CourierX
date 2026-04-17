@@ -180,6 +180,60 @@ def signin():
     return jsonify(message='Signed in', userid=uid, username=user['username']), 200
 
 
+@app.route('/api/auth/forgot-password/request', methods=['POST'])
+def forgot_password_request():
+    data = request.json or {}
+    uid  = (data.get('userid') or '').lower().strip()
+    
+    user = query_db('SELECT mobile FROM user WHERE userid=%s', (uid,), fetchone=True)
+    if not user:
+        return jsonify(error='No account found with this email ID.'), 404
+    
+    mobile = user.get('mobile')
+    if not mobile:
+        return jsonify(error='No mobile number associated with this account. Please contact support.'), 400
+    
+    # Process mobile to 10 digits for send_otp
+    clean = mobile.replace('+91', '').replace(' ', '')
+    ok, msg = send_otp(clean)
+    
+    if ok:
+        display_mobile = f"+91 {clean[:2]}****{clean[-2:]}"
+        return jsonify(message=f'OTP sent to {display_mobile}', mobile=clean), 200
+    return jsonify(error=msg), 500
+
+
+@app.route('/api/auth/forgot-password/reset', methods=['POST'])
+def forgot_password_reset():
+    data     = request.json or {}
+    uid      = (data.get('userid')   or '').lower().strip()
+    mobile   = (data.get('mobile')   or '').strip()
+    otp_code = str(data.get('otp_code', '')).strip()
+    new_pass = (data.get('password') or '').strip()
+
+    # Validations
+    if not uid or not mobile or not otp_code or not new_pass:
+        return jsonify(error='Missing required fields'), 400
+
+    # Verify OTP
+    valid, msg = verify_otp(mobile, otp_code)
+    if not valid:
+        return jsonify(error=f'OTP error: {msg}'), 403
+
+    # Validate new password strength
+    if len(new_pass) < 8 or len(new_pass) > 20 or '@' not in new_pass or ' ' in new_pass:
+        return jsonify(error='Password must be 8-20 chars, contain @, no spaces'), 400
+    if new_pass.islower() or new_pass.isupper():
+        return jsonify(error='Password needs at least one uppercase letter'), 400
+
+    # Update password
+    query_db('UPDATE user SET password=%s WHERE userid=%s', (new_pass, uid), commit=True)
+    # Reset wrong password attempts as well
+    query_db('UPDATE wpd SET attemps=1', commit=True)
+    
+    return jsonify(message='Password has been reset successfully. You can now sign in.'), 200
+
+
 @app.route('/api/auth/signout', methods=['POST'])
 def signout():
     session.clear()

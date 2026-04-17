@@ -125,53 +125,65 @@ def pdw():
 # ─────────────────────────────────────────────────────────────────────────────
 # Password / UserID Reset (via recovery code)
 # ─────────────────────────────────────────────────────────────────────────────
-def rpwd():
-    """Reset password using recovery code."""
-    import backend.validation as v
-    print("+-----------------------------+")
-    print("|  Enter 1. to goto Homepage  |")
-    print("+-----------------------------+")
-    rd = input("To Reset your password please enter your recoverycode:")
-    if rd == '1':
-        print("+------------------------+")
-        print("+|  Redirecting to Home  |")
-        print("+------------------------+")
-        time.sleep(1)
-        _home()
-    query = "select recoverycode from user where userid = %s"
-    val = (urid,)
-    cursor.execute(query, val)
-    data = cursor.fetchall()
-    for i in data:
-        if i == (rd,):
-            print("+------------------+")
-            print("|  Reset Password  |")
-            print("+------------------+")
-            pwd()
-            query = "update user set password=%s where recoverycode=%s"
-            val = (v.ps, rd)
-            cursor.execute(query, val)
-            con.commit()
-            print("+--------------------+")
-            print("|  Password Changed  |")
-            print("+--------------------+")
-            time.sleep(1)
-            signin()
-        else:
-            print("+-----------------------------------------+")
-            print("|  Recoverycode Incorret                  |")
-            print("|  1. Enter Again                         |")
-            print("|  Anything else would take to homepage   |")
-            print("+-----------------------------------------+")
-            ch6 = input("Enter Choice")
-            if ch6 == '1':
-                rpwd()
-            else:
-                print("+---------------------------+")
-                print("|  Redirecting You to Home  |")
-                print("+---------------------------+")
-                time.sleep(1)
-                _home()
+128: def rpwd():
+129:     """Reset password using OTP verification."""
+130:     import backend.validation as v
+131:     from backend.sms import send_otp, verify_otp
+132:     from backend.db import query_db
+133: 
+134:     print("+-----------------------------+")
+135:     print("|  Enter 1. to goto Homepage  |")
+136:     print("+-----------------------------+")
+137:     uid = input("To Reset your password please enter your Userid (Email): ").lower().strip()
+138:     if uid == '1':
+139:         _home()
+140:         return
+141: 
+142:     user = query_db('SELECT mobile FROM user WHERE userid=%s', (uid,), fetchone=True)
+143:     if not user:
+144:         print("+---------------------------------+")
+145:         print("|  User ID not found              |")
+146:         print("+---------------------------------+")
+147:         time.sleep(1)
+148:         _home()
+149:         return
+150: 
+151:     mobile = user['mobile']
+152:     clean = mobile.replace('+91', '').replace(' ', '')
+153:     ok, msg = send_otp(clean)
+154:     if not ok:
+155:         print(f"Error: {msg}")
+156:         _home()
+157:         return
+158: 
+159:     print(f"+---------------------------------+")
+160:     print(f"|  OTP sent to {mobile[:6]}****{mobile[-2:]}  |")
+161:     print("+---------------------------------+")
+162:     code = input("Enter 6-digit OTP: ").strip()
+163:     
+164:     valid, msg = verify_otp(clean, code)
+165:     if valid:
+166:         print("+------------------+")
+167:         print("|  Reset Password  |")
+168:         print("+------------------+")
+169:         pwd()
+170:         query_db("UPDATE user SET password=%s WHERE userid=%s", (v.ps, uid), commit=True)
+171:         query_db("UPDATE wpd SET attemps=1", commit=True)
+172:         print("+--------------------+")
+173:         print("|  Password Changed  |")
+174:         print("+--------------------+")
+175:         time.sleep(1)
+176:         signin()
+177:     else:
+178:         print(f"+---------------------------------+")
+179:         print(f"|  OTP Error: {msg}              |")
+180:         print("|  1. Try Again                   |")
+181:         print("|  Anything else: Homepage        |")
+182:         print("+---------------------------------+")
+183:         if input("Choice: ") == '1':
+184:             rpwd()
+185:         else:
+186:             _home()
 
 
 def rsud():
@@ -240,6 +252,7 @@ def signin():
         print("|  Userid Incorrect                        |")
         print("|  1. Enter Again                          |")
         print("|  2. Reset UseriD                         |")
+        print("|  3. Forgot Password                      |")
         print("|  Anything else would take to homepage    |")
         print("+------------------------------------------+")
         ch7 = input("Enter Choice")
@@ -251,6 +264,8 @@ def signin():
             print("+--------------------------------+")
             time.sleep(1)
             rsud()
+        elif ch7 == '3':
+            rpwd()
         else:
             print("+---------------------------+")
             print("|  Redirecting You to Home  |")
